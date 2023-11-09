@@ -1,24 +1,44 @@
+const c = @cImport(@cInclude("signal.h"));
 const std = @import("std");
+const botlib = @import("bot.zig");
+const Bot = botlib.Bot;
+const File = botlib.File;
 
-pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+const photo = @embedFile("photo.jpg");
+var running = true;
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+fn sig_handler(_: c_int) callconv(.C) void {
+    running = false;
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+pub fn main() !void {
+    _ = c.signal(c.SIGINT, sig_handler);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    var allocator = gpa.allocator();
+    var out = std.io.getStdOut().writer();
+
+    try Bot.init();
+    defer Bot.deinit();
+    var bot = try Bot.create("", allocator);
+    defer bot.destroy();
+
+    try out.print("polling started\n", .{});
+    while (running) {
+        var upd = try bot.poll();
+        if (upd) |*update| {
+            defer update.deinit();
+
+            var chat_id = try update.dot(i64, "message.chat.id");
+            var text = try update.dot([]const u8, "message.text");
+
+            try bot.do("sendPhoto", .{
+                .chat_id = chat_id,
+                .caption = text,
+                .photo = File{photo},
+            });
+        }
+    }
+    try out.print("polling finished\n", .{});
 }
