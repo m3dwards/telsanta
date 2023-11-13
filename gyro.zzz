@@ -1,0 +1,6 @@
+deps:
+  telezig:
+    git:
+      url: "https://github.com/axgdev/telezig.git"
+      ref: 7674117dc3b8f0b33b8a0c842779571334593d27
+      root: src/main.zig
