@@ -1,44 +1,45 @@
-const c = @cImport(@cInclude("signal.h"));
 const std = @import("std");
-const botlib = @import("tgz");
-const Bot = botlib.Bot;
-const File = botlib.File;
+const builtin = @import("builtin");
+const Telezig = @import("telezig.zig");
 
-const photo = @embedFile("./photo.jpg");
-var running = true;
-
-fn sig_handler(_: c_int) callconv(.C) void {
-    running = false;
+fn getToken(token_path: []const u8, buffer: []u8) !void {
+    const file = try std.fs.cwd().openFile(token_path, .{ .mode = .read_only });
+    defer file.close();
+    _ = try file.reader().read(buffer);
 }
 
 pub fn main() !void {
-    _ = c.signal(c.SIGINT, sig_handler);
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    // Windows-only startup, this might not be needed in the future if fixed, see: https://github.com/ziglang/zig/issues/8943
+    if (builtin.os.tag == std.Target.Os.Tag.windows) _ = try std.os.windows.WSAStartup(2, 0);
 
-    var allocator = gpa.allocator();
-    var out = std.io.getStdOut().writer();
+    var allocator = std.testing.allocator;
+    var token: [46]u8 = undefined;
+    // Here we call the function above to load the token from a file,
+    // but you can decide to load it from an environment variable or any other way
+    try getToken("token.txt", token[0..]);
+    var bot = try Telezig.init(allocator, token[0..]);
 
-    try Bot.init();
-    defer Bot.deinit();
-    var bot = try Bot.create("", allocator);
-    defer bot.destroy();
+    var update_id: i64 = std.math.minInt(i64);
+    var sleep_seconds: u64 = 10;
+    // Here we run an infinite loop to get messages written to the bot and respond with the same text.
+    // The only way to stop it is to kill the app
+    while (true) {
+        // Sleep some seconds on each loop to not make too many requests to the Telegram API
+        std.time.sleep(sleep_seconds * std.time.ns_per_s);
 
-    try out.print("polling started\n", .{});
-    while (running) {
-        var upd = try bot.poll();
-        if (upd) |*update| {
-            defer update.deinit();
+        // Get the updates from the Telegram API
+        var update = try bot.getUpdates();
+        defer bot.allocator.free(update.text);
 
-            var chat_id = try update.dot(i64, "message.chat.id");
-            var text = try update.dot([]const u8, "message.text");
+        // We only send an echo message if someone has sent any new message to the bot
+        var new_update_id = update.update_id;
+        if (update_id == new_update_id) continue;
+        update_id = new_update_id;
 
-            try bot.do("sendPhoto", .{
-                .chat_id = chat_id,
-                .caption = text,
-                .photo = File{photo},
-            });
-        }
+        // Send the same message we received
+        try bot.sendMessage(update);
     }
-    try out.print("polling finished\n", .{});
+
+    // Windows-only cleanup, this might not be needed in the future if fixed, see: https://github.com/ziglang/zig/issues/8943
+    if (builtin.os.tag == std.Target.Os.Tag.windows) try std.os.windows.WSACleanup();
 }
