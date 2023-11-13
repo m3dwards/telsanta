@@ -1,3 +1,0 @@
-[submodule "deps/tgz/zigcurl"]
-	path = deps/tgz/zigcurl
-	url = git@github.com:star-tek-mb/zigcurl.git
