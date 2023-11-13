@@ -1,10 +1,10 @@
 const c = @cImport(@cInclude("signal.h"));
 const std = @import("std");
-const botlib = @import("bot.zig");
+const botlib = @import("tgz");
 const Bot = botlib.Bot;
 const File = botlib.File;
 
-const photo = @embedFile("photo.jpg");
+const photo = @embedFile("./photo.jpg");
 var running = true;
 
 fn sig_handler(_: c_int) callconv(.C) void {

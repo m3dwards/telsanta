@@ -19,12 +19,15 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tgz.addIncludePath("tgz/src");
-    tgz.addCSourceFile("tgz/src/jsmn.c", &.{"-std=c89"});
+    tgz.addIncludePath(.{ .path = "./tgz/src" });
+    tgz.addCSourceFile(.{ .file = .{ .path = "tgz/src/jsmn.c" }, .flags = &.{"-std=c89"} });
     tgz.installHeader("tgz/src/jsmn.h", "jsmn.h");
     tgz.linkLibrary(libcurl);
     b.installArtifact(tgz);
 
+    const tgzmod = b.addModule("tgz", .{
+        .source_file = .{ .path = "tgz/src/bot.zig" },
+    });
     const exe = b.addExecutable(.{
         .name = "telsanta",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -33,6 +36,7 @@ pub fn build(b: *std.Build) void {
     });
     exe.linkLibrary(tgz);
     b.installArtifact(exe);
+    exe.addModule("tgz", tgzmod);
 
     const run = b.addRunArtifact(exe);
     // By making the run step depend on the install step, it will be run from the
