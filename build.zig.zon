@@ -1,0 +1,10 @@
+.{
+    .name = "telsanta",
+    .paths = .{""},
+    .version = "0.0.0",
+    .dependencies = .{
+        .pg = .{ 
+            .url = "https://github.com/karlseguin/pg.zig/archive/0fb32c015a8f87f0745c73d47d6c60b9e66fe646.tar.gz", 
+            .hash = "12205d9930bff90a169eeba02102d7e346ddc6b9229c2894a2347356becc1902e0f6" },
+    },
+}

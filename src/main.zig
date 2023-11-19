@@ -1,10 +1,49 @@
 const std = @import("std");
+const pg = @import("pg");
 
 pub fn main() !void { // our http client, this can make multiple requests (and is even threadsafe, although individual requests are not).
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
     const allocator = arena.allocator();
+
+    // start of database stuff
+
+    var pgPassword = try std.process.getEnvVarOwned(allocator, "PGPASSWORD");
+
+    var pool = try pg.Pool.init(allocator, .{ .size = 5, .connect = .{
+        .port = 5432,
+        .host = "flora.db.elephantsql.com",
+    }, .auth = .{
+        .username = "pdukhuys",
+        .database = "pdukhuys",
+        .password = pgPassword,
+        .timeout = 10_000,
+    } });
+    defer pool.deinit();
+
+    var conn = try pool.acquire();
+    defer conn.release();
+
+    const sql = "select id, name from users where power > $1";
+    var result = conn.query(sql, .{9000}) catch |err| switch (err) {
+        error.PG => {
+            std.debug.print("PG: {s}", .{conn.err.?.message});
+            return err;
+        },
+        else => return err,
+    };
+    defer result.deinit();
+
+    while (try result.next()) |row| {
+        const id = row.get(i32, 0);
+        _ = id;
+        // this is only valid until the next call to next(), deinit() or drain()
+        const name = row.get([]u8, 1);
+        _ = name;
+    }
+
+    // end of database stuff
 
     var client = std.http.Client{
         .allocator = allocator,
