@@ -11,15 +11,19 @@ pub fn main() !void { // our http client, this can make multiple requests (and i
 
     var pgPassword = try std.process.getEnvVarOwned(allocator, "PGPASSWORD");
 
-    var pool = try pg.Pool.init(allocator, .{ .size = 5, .connect = .{
-        .port = 5432,
-        .host = "flora.db.elephantsql.com",
-    }, .auth = .{
-        .username = "pdukhuys",
-        .database = "pdukhuys",
-        .password = pgPassword,
-        .timeout = 10_000,
-    } });
+    var pool = try pg.Pool.init(allocator, .{
+        .size = 5,
+        .connect = .{
+            .port = 5432,
+            .host = "flora.db.elephantsql.com",
+        },
+        .auth = .{
+            .username = "pdukhuys",
+            .database = "pdukhuys",
+            .password = pgPassword,
+            .timeout = 10_000,
+        },
+    });
     defer pool.deinit();
 
     var conn = try pool.acquire();

@@ -4,7 +4,7 @@
     .version = "0.0.0",
     .dependencies = .{
         .pg = .{ 
-            .url = "https://github.com/karlseguin/pg.zig/archive/0fb32c015a8f87f0745c73d47d6c60b9e66fe646.tar.gz", 
-            .hash = "12205d9930bff90a169eeba02102d7e346ddc6b9229c2894a2347356becc1902e0f6" },
+            .url = "https://github.com/karlseguin/pg.zig/archive/6b12b0aa0121f246e235515911b298c212fe47a0.tar.gz", 
+            .hash = "1220be76d84d66753dcf3d5037a028a8fe1422cd17ecf52b6e4b9d514b47456df934" },
     },
 }
