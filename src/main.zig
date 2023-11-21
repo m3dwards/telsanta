@@ -29,23 +29,23 @@ pub fn main() !void { // our http client, this can make multiple requests (and i
     var conn = try pool.acquire();
     defer conn.release();
 
-    const sql = "select id, name from users where power > $1";
-    var result = conn.query(sql, .{9000}) catch |err| switch (err) {
-        error.PG => {
-            std.debug.print("PG: {s}", .{conn.err.?.message});
-            return err;
-        },
-        else => return err,
-    };
-    defer result.deinit();
+    // const sql = "select id, name from users where power > $1";
+    // var result = conn.query(sql, .{9000}) catch |err| switch (err) {
+    //     error.PG => {
+    //         std.debug.print("PG: {s}", .{conn.err.?.message});
+    //         return err;
+    //     },
+    //     else => return err,
+    // };
+    // defer result.deinit();
 
-    while (try result.next()) |row| {
-        const id = row.get(i32, 0);
-        _ = id;
-        // this is only valid until the next call to next(), deinit() or drain()
-        const name = row.get([]u8, 1);
-        _ = name;
-    }
+    // while (try result.next()) |row| {
+    //     const id = row.get(i32, 0);
+    //     _ = id;
+    //     // this is only valid until the next call to next(), deinit() or drain()
+    //     const name = row.get([]u8, 1);
+    //     _ = name;
+    // }
 
     // end of database stuff
 
@@ -53,8 +53,17 @@ pub fn main() !void { // our http client, this can make multiple requests (and i
         .allocator = allocator,
     };
 
+    var telToken = try std.process.getEnvVarOwned(allocator, "TELTOKEN");
+
+    const string = try std.fmt.allocPrint(
+        allocator,
+        "https://api.telegram.org/bot{s}/getUpdates?offset=0&timeout=30&allowed_updates=[]",
+        .{telToken},
+    );
+    defer allocator.free(string);
+
     // we can `catch unreachable` here because we can guarantee that this is a valid url.
-    const uri = std.Uri.parse("https://example.com") catch unreachable;
+    const uri = std.Uri.parse(string) catch unreachable;
 
     // these are the headers we'll be sending to the server
     var headers = std.http.Headers{ .allocator = allocator };
