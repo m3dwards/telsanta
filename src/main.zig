@@ -2,6 +2,13 @@ const std = @import("std");
 const pg = @import("pg");
 
 pub fn main() !void { // our http client, this can make multiple requests (and is even threadsafe, although individual requests are not).
+    var lastUpdate: i64 = 0;
+    while (true) {
+        lastUpdate = try getUpdate(lastUpdate) + 1;
+    }
+}
+
+pub fn getUpdate(lastUpdate: i64) !i64 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
@@ -57,8 +64,8 @@ pub fn main() !void { // our http client, this can make multiple requests (and i
 
     const string = try std.fmt.allocPrint(
         allocator,
-        "https://api.telegram.org/bot{s}/getUpdates?offset=0&timeout=30&allowed_updates=[]",
-        .{telToken},
+        "https://api.telegram.org/bot{s}/getUpdates?offset={d}&timeout=30&allowed_updates=[]",
+        .{ telToken, lastUpdate },
     );
     defer allocator.free(string);
 
@@ -93,9 +100,85 @@ pub fn main() !void { // our http client, this can make multiple requests (and i
 
     // read the entire response body, but only allow it to allocate 8kb of memory
     const body = req.reader().readAllAlloc(allocator, 8192) catch unreachable;
+
     defer allocator.free(body);
 
+    const update = try std.json.parseFromSliceLeaky(std.json.Value, allocator, body, .{});
+    // defer update.deinit();
+
+    const object = update.object;
+    const results = object.get("result").?.array;
+    var lastUpdateId: i64 = 0;
+    for (results.items) |result| {
+        lastUpdateId = result.object.get("update_id").?.integer;
+        const message = result.object.get("message");
+        if (message != null) {
+            const m = message.?.object;
+            const chat = m.get("chat");
+            if (chat != null) {
+                const c = chat.?.object;
+                const chatId = c.get("id").?.integer;
+                if (chatId != 0) {
+                    if (m.get("text") != null) {
+                        const text = m.get("text").?.string;
+                        if (text.len != 0) {
+                            const sendmsgcmd = try std.fmt.allocPrint(
+                                allocator,
+                                "https://api.telegram.org/bot{s}/sendMessage?chat_id={d}&text={s}",
+                                .{ telToken, chatId, text },
+                            );
+                            defer allocator.free(sendmsgcmd);
+
+                            // we can `catch unreachable` here because we can guarantee that this is a valid url.
+                            const uri2 = std.Uri.parse(sendmsgcmd) catch unreachable;
+                            _ = uri2;
+
+                            // these are the headers we'll be sending to the server
+                            var headers2 = std.http.Headers{ .allocator = allocator };
+                            defer headers2.deinit();
+
+                            try headers2.append("accept", "*/*"); // tell the server we'll accept anything
+
+                            // make the connection and set up the request
+                            var req2 = try client.request(.GET, uri, headers, .{});
+                            defer req2.deinit();
+
+                            // I'm making a GET request, so do I don't need this, but I'm sure someone will.
+                            // req.transfer_encoding = .chunked;
+
+                            // send the request and headers to the server.
+                            try req2.start();
+
+                            // try req.writer().writeAll("Hello, World!\n");
+                            // try req.finish();
+
+                            // wait for the server to send use a response
+                            try req2.wait();
+
+                            // read the content-type header from the server, or default to text/plain
+                            const content_type2 = req.response.headers.getFirstValue("content-type") orelse "text/plain";
+                            _ = content_type2;
+
+                            // read the entire response body, but only allow it to allocate 8kb of memory
+                            const body2 = req.reader().readAllAlloc(allocator, 8192) catch unreachable;
+
+                            defer allocator.free(body2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // @TypeOf(tree.root) == std.json.Value
+
+    // Access the fields value via .get() method
+    // var message = object.get("message").?;
+    // _ = message;
+    // var pollAnswer = object.get("poll_answer").?;
+    // _ = pollAnswer;
+
     std.log.info("{s}", .{body});
+    return lastUpdateId;
 }
 
 test "simple test" {
